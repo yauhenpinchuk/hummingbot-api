@@ -52,7 +52,7 @@ install-pre-commit:
 
 # Build Docker image
 build:
-	docker build -t hummingbot/hummingbot-api:latest .
+	docker build -t local/hummingbot-api:latest .
 
 # Copy committed sol-pump YAML into bots/conf/scripts|controllers (required before deploy-v2-script for sol-pump)
 install-sol-pump-config:

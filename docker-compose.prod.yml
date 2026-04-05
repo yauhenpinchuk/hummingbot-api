@@ -7,6 +7,7 @@
 # conflict with crypto-analytics or other Postgres on 127.0.0.1:5432.
 #
 # Secrets: /opt/hummingbot-stack/.secrets/env (chmod 600). Create from .env.example.
+# Required on Linux: DOCKER_HOST_PROJECT_ROOT=/opt/hummingbot-stack/hummingbot-api
 #
 # Layout (same server root as hummingbot + gateway):
 #   /opt/hummingbot-stack/
@@ -45,6 +46,7 @@ services:
       - CONFIG_PASSWORD=${CONFIG_PASSWORD}
       - DEBUG_MODE=${DEBUG_MODE:-false}
       - GATEWAY_URL=${GATEWAY_URL:-http://host.docker.internal:15888}
+      - DOCKER_HOST_PROJECT_ROOT=${DOCKER_HOST_PROJECT_ROOT:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

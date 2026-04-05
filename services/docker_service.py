@@ -253,15 +253,21 @@ class DockerService:
         client_config['instance_id'] = instance_name
         fs_util.dump_dict_to_yaml(conf_file_path, client_config)
 
-        # Set up Docker volumes
-        instance_conf = os.path.abspath(os.path.join(bots_path, instance_dir, 'conf'))
-        instance_connectors = os.path.abspath(os.path.join(bots_path, instance_dir, 'conf', 'connectors'))
-        instance_scripts = os.path.abspath(os.path.join(bots_path, instance_dir, 'conf', 'scripts'))
-        instance_controllers = os.path.abspath(os.path.join(bots_path, instance_dir, 'conf', 'controllers'))
-        instance_data = os.path.abspath(os.path.join(bots_path, instance_dir, 'data'))
-        instance_logs = os.path.abspath(os.path.join(bots_path, instance_dir, 'logs'))
-        shared_scripts = os.path.abspath(os.path.join(bots_path, "bots", 'scripts'))
-        shared_controllers = os.path.abspath(os.path.join(bots_path, "bots", 'controllers'))
+        # Bind-mount sources are resolved on the *host* by the Docker daemon. Inside this API
+        # container paths are often /hummingbot-api/...; on Linux that may not be the same host
+        # tree as the real repo. Set DOCKER_HOST_PROJECT_ROOT (e.g. in .secrets/env on the server).
+        host_project = os.environ.get("DOCKER_HOST_PROJECT_ROOT", "").strip()
+        volume_base = host_project if host_project else bots_path
+
+        # Set up Docker volumes (keys = host paths for bind mounts)
+        instance_conf = os.path.normpath(os.path.join(volume_base, instance_dir, 'conf'))
+        instance_connectors = os.path.normpath(os.path.join(volume_base, instance_dir, 'conf', 'connectors'))
+        instance_scripts = os.path.normpath(os.path.join(volume_base, instance_dir, 'conf', 'scripts'))
+        instance_controllers = os.path.normpath(os.path.join(volume_base, instance_dir, 'conf', 'controllers'))
+        instance_data = os.path.normpath(os.path.join(volume_base, instance_dir, 'data'))
+        instance_logs = os.path.normpath(os.path.join(volume_base, instance_dir, 'logs'))
+        shared_scripts = os.path.normpath(os.path.join(volume_base, "bots", 'scripts'))
+        shared_controllers = os.path.normpath(os.path.join(volume_base, "bots", 'controllers'))
 
         volumes = {
             instance_conf: {'bind': '/home/hummingbot/conf', 'mode': 'rw'},

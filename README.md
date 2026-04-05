@@ -13,7 +13,7 @@ make deploy   # Starts all services
 
 That's it! The API is now running at [http://localhost:8000](http://localhost:8000)
 
-Docker Compose **v2.24+** is required (optional `.env` uses `required: false`). The API image is **built locally** from the `Dockerfile` on first `make deploy`.
+Docker Compose **v2.24+** is required (optional `.env` uses `required: false`). The API image is **built locally** and tagged `local/hummingbot-api:latest` (not the Docker Hub `hummingbot/*` namespace) on first `make deploy`.
 
 To bring the stack up **without** conda setup (uses built-in defaults for API auth when `.env` is missing):
 

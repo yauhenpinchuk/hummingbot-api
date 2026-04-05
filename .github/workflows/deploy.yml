@@ -80,6 +80,8 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             export HUMMINGBOT_API_IMAGE=ghcr.io/${{ github.repository_owner }}/hummingbot-api:latest
+            # Default host path for bot bind mounts (override in ../.secrets/env if repo lives elsewhere)
+            export DOCKER_HOST_PROJECT_ROOT="${DOCKER_HOST_PROJECT_ROOT:-/opt/hummingbot-stack/hummingbot-api}"
 
             docker compose -f docker-compose.prod.yml --env-file ../.secrets/env pull
 

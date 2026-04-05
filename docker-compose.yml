@@ -5,7 +5,8 @@ name: hummingbot-api
 services:
   hummingbot-api:
     container_name: hummingbot_api
-    image: hummingbot/hummingbot-api:latest
+    # Local build tag (not Docker Hub `hummingbot/*` — avoids accidental pull of upstream API image)
+    image: local/hummingbot-api:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -26,6 +27,8 @@ services:
       - BROKER_HOST=emqx
       # Prefer `DATABASE_URL` from `.env`; fallback matches default POSTGRES_PASSWORD below
       - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://hbot:hummingbot-api@postgres:5432/hummingbot_api}
+      # Host absolute path to this repo (Linux + docker.sock). Set in `.env` / `.secrets/env`.
+      - DOCKER_HOST_PROJECT_ROOT=${DOCKER_HOST_PROJECT_ROOT:-}
     extra_hosts:
       # Map host.docker.internal to host gateway for Linux compatibility
       # On macOS/Windows, Docker Desktop provides this automatically
