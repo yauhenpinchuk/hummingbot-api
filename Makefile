@@ -58,7 +58,7 @@ build:
 install-sol-pump-config:
 	"$(MAKEFILE_DIR)/scripts/install-sol-pump-config.sh"
 
-# Create DB `hummingbot` on API Postgres if missing (for bot MarketsRecorder; same instance as hummingbot_api)
+# Create DB `hummingbot_sol_pump` on API Postgres if missing (for bot MarketsRecorder; same instance as hummingbot_api)
 ensure-hummingbot-trading-db:
 	"$(MAKEFILE_DIR)/scripts/ensure-hummingbot-trading-db.sh"
 

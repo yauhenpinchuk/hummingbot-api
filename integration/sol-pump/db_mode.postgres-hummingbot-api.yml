@@ -8,4 +8,4 @@ db_mode:
   db_port: 55432
   db_username: hbot
   db_password: change_me_db_password
-  db_name: hummingbot
+  db_name: hummingbot_sol_pump
