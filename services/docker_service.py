@@ -3,14 +3,14 @@ import os
 import shutil
 import threading
 import time
-from typing import Dict
+from typing import Dict, Union
 
 import docker
 from docker.errors import DockerException
 from docker.types import LogConfig
 
 from config import settings
-from models import V2ControllerDeployment
+from models import V2ControllerDeployment, V2ScriptDeployment
 from utils.file_system import fs_util
 
 # Create module-specific logger
@@ -161,7 +161,14 @@ class DockerService:
         except DockerException as e:
             return {"success": False, "message": str(e)}
 
-    def create_hummingbot_instance(self, config: V2ControllerDeployment):
+    @staticmethod
+    def _script_config_filename(script_config: str) -> str:
+        """Accept API payloads with or without .yml suffix."""
+        if not script_config:
+            return script_config
+        return script_config if script_config.endswith(".yml") else f"{script_config}.yml"
+
+    def create_hummingbot_instance(self, config: Union[V2ControllerDeployment, V2ScriptDeployment]):
         bots_path = os.environ.get('BOTS_PATH', self.SOURCE_PATH)  # Default to 'SOURCE_PATH' if BOTS_PATH is not set
         instance_name = config.instance_name
         instance_dir = os.path.join("bots", 'instances', instance_name)
@@ -173,16 +180,30 @@ class DockerService:
         # Copy credentials to instance directory
         source_credentials_dir = os.path.join("bots", 'credentials', config.credentials_profile)
         destination_credentials_dir = os.path.join(instance_dir, 'conf')
+        abs_source_creds = os.path.normpath(os.path.join(bots_path, source_credentials_dir))
+        abs_dest_creds = os.path.normpath(os.path.join(bots_path, destination_credentials_dir))
+
+        if not os.path.isdir(abs_source_creds):
+            return {
+                "success": False,
+                "message": (
+                    f"Credentials profile '{config.credentials_profile}' not found at {abs_source_creds}. "
+                    "Create it: copy your Hummingbot `conf/` tree into that folder, or run "
+                    "`make sync-credentials-from-hummingbot HUMMINGBOT_ROOT=/path/to/hummingbot "
+                    f"PROFILE={config.credentials_profile}`. "
+                    "If you only have the default API tree, try `credentials_profile`: `master_account`."
+                ),
+            }
 
         # Remove the destination directory if it already exists
-        if os.path.exists(destination_credentials_dir):
-            shutil.rmtree(destination_credentials_dir)
+        if os.path.exists(abs_dest_creds):
+            shutil.rmtree(abs_dest_creds)
 
-        # Copy the entire contents of source_credentials_dir to destination_credentials_dir
-        shutil.copytree(source_credentials_dir, destination_credentials_dir)
+        shutil.copytree(abs_source_creds, abs_dest_creds)
 
         # Copy specific script config and referenced controllers if provided
         if config.script_config:
+            script_yaml = self._script_config_filename(config.script_config)
             script_config_dir = os.path.join("bots", 'conf', 'scripts')
             controllers_config_dir = os.path.join("bots", 'conf', 'controllers')
             destination_scripts_config_dir = os.path.join(instance_dir, 'conf', 'scripts')
@@ -191,8 +212,8 @@ class DockerService:
             os.makedirs(destination_scripts_config_dir, exist_ok=True)
 
             # Copy the specific script config file
-            source_script_config_file = os.path.join(script_config_dir, config.script_config)
-            destination_script_config_file = os.path.join(destination_scripts_config_dir, config.script_config)
+            source_script_config_file = os.path.join(script_config_dir, script_yaml)
+            destination_script_config_file = os.path.join(destination_scripts_config_dir, script_yaml)
 
             if os.path.exists(source_script_config_file):
                 shutil.copy2(source_script_config_file, destination_script_config_file)
@@ -200,7 +221,7 @@ class DockerService:
                 # Load the script config to find referenced controllers
                 try:
                     # Path relative to fs_util base_path (which is "bots")
-                    script_config_relative_path = f"conf/scripts/{config.script_config}"
+                    script_config_relative_path = f"conf/scripts/{script_yaml}"
                     script_config_content = fs_util.read_yaml_file(script_config_relative_path)
                     controllers_list = script_config_content.get('controllers_config', [])
 
@@ -223,9 +244,9 @@ class DockerService:
                                 )
 
                 except Exception as e:
-                    logger.error(f"Error reading script config file {config.script_config}: {e}")
+                    logger.error(f"Error reading script config file {script_yaml}: {e}")
             else:
-                logger.warning(f"Script config file {config.script_config} not found in {script_config_dir}")
+                logger.warning(f"Script config file {script_yaml} not found in {script_config_dir}")
         # Path relative to fs_util base_path (which is "bots")
         conf_file_path = f"instances/{instance_name}/conf/conf_client.yml"
         client_config = fs_util.read_yaml_file(conf_file_path)
@@ -261,7 +282,7 @@ class DockerService:
 
         if config.script_config:
             if password:
-                environment['SCRIPT_CONFIG'] = config.script_config
+                environment['SCRIPT_CONFIG'] = self._script_config_filename(config.script_config)
             else:
                 return {"success": False, "message": "Password not provided. We cannot start the bot without a password."}
 

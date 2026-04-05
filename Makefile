@@ -1,4 +1,4 @@
-.PHONY: setup run deploy deploy-docker stop install uninstall build install-pre-commit
+.PHONY: setup run deploy deploy-docker stop install uninstall build install-pre-commit install-sol-pump-config sync-credentials-from-hummingbot
 
 SETUP_SENTINEL := .setup-complete
 
@@ -50,3 +50,12 @@ install-pre-commit:
 # Build Docker image
 build:
 	docker build -t hummingbot/hummingbot-api:latest .
+
+# Copy committed sol-pump YAML into bots/conf/ (required before deploy-v2-script for sol-pump)
+install-sol-pump-config:
+	./scripts/install-sol-pump-config.sh
+
+# Copy Hummingbot repo conf/ -> bots/credentials/<profile>/ (default: sol_pump). Usage: make sync-credentials-from-hummingbot HUMMINGBOT_ROOT=../hummingbot PROFILE=sol_pump
+sync-credentials-from-hummingbot:
+	@if [ -z "$(HUMMINGBOT_ROOT)" ]; then echo "Set HUMMINGBOT_ROOT=path/to/hummingbot"; exit 1; fi
+	./scripts/sync-credentials-from-hummingbot.sh "$(HUMMINGBOT_ROOT)" "$(or $(PROFILE),sol_pump)"

@@ -1,0 +1,34 @@
+id: sol_pump_lp_wide
+controller_name: lp_rebalancer
+controller_type: generic
+
+# Connection
+connector_name: raydium/clmm
+network: mainnet-beta
+trading_pair: SOL-PUMP
+pool_address: 45ssPkUQs1ssbeDqxD2mZrMdJYAXF7GyQyhS5xDXuWC5
+
+# Capital — 30% of total allocation
+# total_amount_quote is in PUMP (quote token of SOL-PUMP pair)
+# Test: 1470 PUMP + ~0.029 SOL (~0.10 SOL total across both controllers) | Full: ~240000 PUMP (~$396)
+total_amount_quote: '1470'
+side: 0  # 0=BOTH (operator holds SOL + PUMP)
+
+# Range — ±13% total width (26.0%)
+# Calibrated to stable regime (Oct 2025–Apr 2026): median monthly range ~25%
+# Backtest (Jan–Apr 2026): 94% in-range, ~5 rebalances/3mo (~1.7/month)
+# Jan 2026 (47% range month): 84% in-range — genuine safety net for narrow rebalances
+# Concentration: 8.2x (lower than narrow by design — safety net, not fee maximiser)
+position_width_pct: '26.0'
+position_offset_pct: '0.5'  # larger buffer for wider range TX timing
+
+# Rebalance timing — conservative (wide range exits only on significant regime shifts)
+rebalance_seconds: 1800         # 30 min out-of-range before rebalancing
+rebalance_threshold_pct: '1.5'  # price must be 1.5% beyond bounds before timer starts
+
+# Price limits — calibrated to Oct 2025–Apr 2026 percentile distribution
+# Current price: ~48,481 PUMP/SOL | p95=67,613 | p99=71,545 | ATH=74,845
+buy_price_min:  '32000'  # p3 — hard floor, stop buying if PUMP crashes severely
+buy_price_max:  '70000'  # p95–p99 range — KEEP anchor for BUY positions
+sell_price_min: '38000'  # p10 — KEEP anchor for SELL positions
+sell_price_max: '76000'  # ATH + ~2% buffer — stop selling if PUMP spikes to ATH

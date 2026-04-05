@@ -95,4 +95,19 @@ jobs:
               exit 1
             fi
 
+            # Optional: start Gateway through the API (API-only operations model).
+            # Set in ../.secrets/env: GATEWAY_POST_START=true and HUMMINGBOT_GATEWAY_IMAGE=ghcr.io/<owner>/hummingbot-gateway:latest
+            set -a
+            . ../.secrets/env
+            set +a
+            if [ "${GATEWAY_POST_START:-false}" = "true" ] && [ -n "${HUMMINGBOT_GATEWAY_IMAGE:-}" ] && [ -n "${GATEWAY_PASSPHRASE:-}" ]; then
+              echo "Starting Gateway via API..."
+              BODY=$(python3 -c "import json,os; print(json.dumps({'passphrase':os.environ['GATEWAY_PASSPHRASE'],'image':os.environ['HUMMINGBOT_GATEWAY_IMAGE'],'dev_mode':True}))")
+              curl -sfS --max-time 120 -u "${USERNAME}:${PASSWORD}" -X POST http://127.0.0.1:8000/gateway/start \
+                -H 'Content-Type: application/json' -d "$BODY"
+              echo ""
+              sleep 5
+              curl -sfS --max-time 10 http://127.0.0.1:15888/connectors >/dev/null && echo "Gateway responded on :15888" || echo "WARN: Gateway not yet reachable on :15888 (check logs / firewall)"
+            fi
+
             echo "Deploy complete — Hummingbot API is up"

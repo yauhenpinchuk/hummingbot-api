@@ -1,0 +1,4 @@
+script_file_name: v2_with_controllers.py
+controllers_config:
+  - sol_pump_lp_narrow.yml
+  - sol_pump_lp_wide.yml

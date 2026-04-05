@@ -654,32 +654,37 @@ async def deploy_v2_controllers(
         deployment.script_config = script_config_filename
         response = docker_manager.create_hummingbot_instance(deployment)
 
-        if response.get("success"):
-            response["script_config_generated"] = script_config_filename
-            response["controllers_deployed"] = deployment.controllers_config
-            response["unique_instance_name"] = unique_instance_name
+        if not response.get("success"):
+            raise HTTPException(
+                status_code=400,
+                detail=response.get("message", "Deployment failed"),
+            )
 
-            # Track bot run if deployment was successful
-            try:
-                async with db_manager.get_session_context() as session:
-                    bot_run_repo = BotRunRepository(session)
-                    await bot_run_repo.create_bot_run(
-                        bot_name=unique_instance_name,
-                        instance_name=unique_instance_name,
-                        strategy_type="controller",
-                        strategy_name="v2_with_controllers",
-                        account_name=deployment.credentials_profile,
-                        config_name=script_config_filename,
-                        image_version=deployment.image,
-                        deployment_config=deployment.dict()
-                    )
-                    logger.info(f"Created bot run record for controller deployment {unique_instance_name}")
-            except Exception as e:
-                logger.error(f"Failed to create bot run record: {e}")
-                # Don't fail the deployment if bot run creation fails
+        response["script_config_generated"] = script_config_filename
+        response["controllers_deployed"] = deployment.controllers_config
+        response["unique_instance_name"] = unique_instance_name
+
+        try:
+            async with db_manager.get_session_context() as session:
+                bot_run_repo = BotRunRepository(session)
+                await bot_run_repo.create_bot_run(
+                    bot_name=unique_instance_name,
+                    instance_name=unique_instance_name,
+                    strategy_type="controller",
+                    strategy_name="v2_with_controllers",
+                    account_name=deployment.credentials_profile,
+                    config_name=script_config_filename,
+                    image_version=deployment.image,
+                    deployment_config=deployment.dict()
+                )
+                logger.info(f"Created bot run record for controller deployment {unique_instance_name}")
+        except Exception as e:
+            logger.error(f"Failed to create bot run record: {e}")
 
         return response
 
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error deploying V2 controllers: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -718,30 +723,35 @@ async def deploy_v2_script(
         # Create the hummingbot instance
         response = docker_manager.create_hummingbot_instance(deployment)
 
-        if response.get("success"):
-            response["unique_instance_name"] = unique_instance_name
+        if not response.get("success"):
+            raise HTTPException(
+                status_code=400,
+                detail=response.get("message", "Deployment failed"),
+            )
 
-            # Track bot run if deployment was successful
-            try:
-                async with db_manager.get_session_context() as session:
-                    bot_run_repo = BotRunRepository(session)
-                    await bot_run_repo.create_bot_run(
-                        bot_name=unique_instance_name,
-                        instance_name=unique_instance_name,
-                        strategy_type="script",
-                        strategy_name=deployment.script or "default",
-                        account_name=deployment.credentials_profile,
-                        config_name=deployment.script_config,
-                        image_version=deployment.image,
-                        deployment_config=deployment.dict()
-                    )
-                    logger.info(f"Created bot run record for script deployment {unique_instance_name}")
-            except Exception as e:
-                logger.error(f"Failed to create bot run record: {e}")
-                # Don't fail the deployment if bot run creation fails
+        response["unique_instance_name"] = unique_instance_name
+
+        try:
+            async with db_manager.get_session_context() as session:
+                bot_run_repo = BotRunRepository(session)
+                await bot_run_repo.create_bot_run(
+                    bot_name=unique_instance_name,
+                    instance_name=unique_instance_name,
+                    strategy_type="script",
+                    strategy_name=deployment.script or "default",
+                    account_name=deployment.credentials_profile,
+                    config_name=deployment.script_config,
+                    image_version=deployment.image,
+                    deployment_config=deployment.dict()
+                )
+                logger.info(f"Created bot run record for script deployment {unique_instance_name}")
+        except Exception as e:
+            logger.error(f"Failed to create bot run record: {e}")
 
         return response
 
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error deploying V2 script: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
