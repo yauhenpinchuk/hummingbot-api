@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
-from sqlalchemy import desc, select, and_, or_, func
+from sqlalchemy import desc, select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import BotRun
@@ -21,9 +21,10 @@ class BotRunRepository:
         account_name: str,
         config_name: Optional[str] = None,
         image_version: Optional[str] = None,
-        deployment_config: Optional[Dict[str, Any]] = None
+        deployment_config: Optional[Dict[str, Any]] = None,
+        run_status: str = "RUNNING",
     ) -> BotRun:
-        """Create a new bot run record."""
+        """Create a new bot run record (deployment or strategy session)."""
         bot_run = BotRun(
             bot_name=bot_name,
             instance_name=instance_name,
@@ -34,7 +35,7 @@ class BotRunRepository:
             image_version=image_version,
             deployment_config=json.dumps(deployment_config) if deployment_config else None,
             deployment_status="DEPLOYED",
-            run_status="CREATED"
+            run_status=run_status,
         )
         
         self.session.add(bot_run)
@@ -42,6 +43,71 @@ class BotRunRepository:
         await self.session.refresh(bot_run)
         return bot_run
 
+    @staticmethod
+    def _normalize_config_name(config_name: Optional[str]) -> Optional[str]:
+        if not config_name:
+            return None
+        c = str(config_name).strip()
+        if c.endswith(".yml"):
+            return c[:-4]
+        if c.endswith(".yaml"):
+            return c[:-5]
+        return c
+
+    async def record_strategy_start(
+        self,
+        bot_name: str,
+        strategy_name: Optional[str] = None,
+        config_name: Optional[str] = None,
+    ) -> Optional[BotRun]:
+        """
+        Record a strategy start: update an open session or insert a new row after a previous stop.
+
+        Each successful MQTT/API start-bot yields a trackable row (or updates the still-open deploy row).
+        """
+        cn = self._normalize_config_name(config_name)
+        latest = await self.get_latest_bot_run(bot_name)
+
+        if latest and latest.stopped_at is None and latest.deployment_status == "DEPLOYED":
+            latest.run_status = "RUNNING"
+            if strategy_name:
+                latest.strategy_name = strategy_name
+            if cn is not None:
+                latest.config_name = cn
+            await self.session.flush()
+            await self.session.refresh(latest)
+            return latest
+
+        sn = strategy_name or (latest.strategy_name if latest else "unknown")
+
+        if latest:
+            prev_cfg = None
+            if latest.deployment_config:
+                try:
+                    prev_cfg = json.loads(latest.deployment_config)
+                except json.JSONDecodeError:
+                    prev_cfg = None
+            return await self.create_bot_run(
+                bot_name=bot_name,
+                instance_name=latest.instance_name,
+                strategy_type=latest.strategy_type,
+                strategy_name=sn,
+                account_name=latest.account_name,
+                config_name=cn if cn is not None else latest.config_name,
+                image_version=latest.image_version,
+                deployment_config=prev_cfg,
+                run_status="RUNNING",
+            )
+
+        return await self.create_bot_run(
+            bot_name=bot_name,
+            instance_name=bot_name,
+            strategy_type="script",
+            strategy_name=sn,
+            account_name="unknown",
+            config_name=cn,
+            run_status="RUNNING",
+        )
 
     async def update_bot_run_stopped(
         self,
@@ -49,33 +115,42 @@ class BotRunRepository:
         final_status: Optional[Dict[str, Any]] = None,
         error_message: Optional[str] = None
     ) -> Optional[BotRun]:
-        """Mark a bot run as stopped and save final status."""
-        stmt = select(BotRun).where(
-            and_(
-                BotRun.bot_name == bot_name,
-                or_(BotRun.run_status == "RUNNING", BotRun.run_status == "CREATED")
+        """Mark the latest still-open session (stopped_at IS NULL) as stopped."""
+        stmt = (
+            select(BotRun)
+            .where(
+                and_(
+                    BotRun.bot_name == bot_name,
+                    BotRun.stopped_at.is_(None),
+                    BotRun.deployment_status == "DEPLOYED",
+                )
             )
-        ).order_by(desc(BotRun.deployed_at))
-        
+            .order_by(desc(BotRun.deployed_at))
+            .limit(1)
+        )
+
         result = await self.session.execute(stmt)
         bot_run = result.scalar_one_or_none()
-        
+
         if bot_run:
             bot_run.run_status = "STOPPED" if not error_message else "ERROR"
-            bot_run.stopped_at = datetime.utcnow()
+            bot_run.stopped_at = datetime.now(timezone.utc)
             bot_run.final_status = json.dumps(final_status) if final_status else None
             bot_run.error_message = error_message
             await self.session.flush()
             await self.session.refresh(bot_run)
-            
+
         return bot_run
 
     async def update_bot_run_archived(self, bot_name: str) -> Optional[BotRun]:
-        """Mark a bot run as archived."""
-        stmt = select(BotRun).where(
-            BotRun.bot_name == bot_name
-        ).order_by(desc(BotRun.deployed_at))
-        
+        """Mark the latest bot run for this instance as archived."""
+        stmt = (
+            select(BotRun)
+            .where(BotRun.bot_name == bot_name)
+            .order_by(desc(BotRun.deployed_at))
+            .limit(1)
+        )
+
         result = await self.session.execute(stmt)
         bot_run = result.scalar_one_or_none()
         
@@ -131,22 +206,25 @@ class BotRunRepository:
 
     async def get_latest_bot_run(self, bot_name: str) -> Optional[BotRun]:
         """Get the latest bot run for a specific bot."""
-        stmt = select(BotRun).where(
-            BotRun.bot_name == bot_name
-        ).order_by(desc(BotRun.deployed_at))
-        
+        stmt = (
+            select(BotRun)
+            .where(BotRun.bot_name == bot_name)
+            .order_by(desc(BotRun.deployed_at))
+            .limit(1)
+        )
+
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_active_bot_runs(self) -> List[BotRun]:
-        """Get all currently active (running) bot runs."""
+        """Get bot runs that are deployed and not stopped (strategy may be running or not yet marked)."""
         stmt = select(BotRun).where(
             and_(
-                BotRun.run_status == "RUNNING",
-                BotRun.deployment_status == "DEPLOYED"
+                BotRun.deployment_status == "DEPLOYED",
+                BotRun.stopped_at.is_(None),
             )
         ).order_by(desc(BotRun.deployed_at))
-        
+
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
@@ -157,11 +235,11 @@ class BotRunRepository:
         total_result = await self.session.execute(total_stmt)
         total_runs = total_result.scalar()
         
-        # Active runs
+        # Active runs (deployed, no stop timestamp)
         active_stmt = select(func.count(BotRun.id)).where(
             and_(
-                BotRun.run_status == "RUNNING",
-                BotRun.deployment_status == "DEPLOYED"
+                BotRun.deployment_status == "DEPLOYED",
+                BotRun.stopped_at.is_(None),
             )
         )
         active_result = await self.session.execute(active_stmt)

@@ -144,7 +144,18 @@ async def start_bot(
         conf=action.conf, async_backend=action.async_backend
     )
 
-    # Bot run tracking simplified - only track deployment and stop times
+    if response.get("success"):
+        try:
+            async with db_manager.get_session_context() as session:
+                bot_run_repo = BotRunRepository(session)
+                await bot_run_repo.record_strategy_start(
+                    action.bot_name,
+                    strategy_name=action.script,
+                    config_name=action.conf,
+                )
+                logger.info(f"Recorded strategy start in bot_runs for {action.bot_name}")
+        except Exception as e:
+            logger.error(f"Failed to record strategy start for {action.bot_name}: {e}")
 
     return {"status": "success", "response": response}
 
@@ -738,11 +749,14 @@ async def deploy_v2_script(
                     bot_name=unique_instance_name,
                     instance_name=unique_instance_name,
                     strategy_type="script",
-                    strategy_name=deployment.script or "default",
+                    strategy_name=(
+                        deployment.script
+                        or ("v2_with_controllers" if deployment.script_config else "default")
+                    ),
                     account_name=deployment.credentials_profile,
                     config_name=deployment.script_config,
                     image_version=deployment.image,
-                    deployment_config=deployment.dict()
+                    deployment_config=deployment.dict(),
                 )
                 logger.info(f"Created bot run record for script deployment {unique_instance_name}")
         except Exception as e:
