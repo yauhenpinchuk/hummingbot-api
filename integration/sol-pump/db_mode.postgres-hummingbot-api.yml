@@ -1,0 +1,11 @@
+# Paste under conf_client.yml as `db_mode:` (replace db_password with POSTGRES_PASSWORD from hummingbot-api .env).
+# Bot containers use network_mode: host → reach API Postgres on the host port (default 55432).
+#
+# postgresql:// URL is built by Hummingbot; requires psycopg2 in the bot image.
+db_mode:
+  db_engine: postgresql
+  db_host: 127.0.0.1
+  db_port: 55432
+  db_username: hbot
+  db_password: change_me_db_password
+  db_name: hummingbot

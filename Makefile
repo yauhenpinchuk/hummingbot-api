@@ -1,4 +1,4 @@
-.PHONY: setup run deploy deploy-docker stop install uninstall build install-pre-commit install-sol-pump-config sync-credentials-from-hummingbot
+.PHONY: setup run deploy deploy-docker stop install uninstall build install-pre-commit install-sol-pump-config sync-credentials-from-hummingbot ensure-hummingbot-trading-db
 
 # Directory containing this Makefile (recipes work even if `make -f path/Makefile` is run from elsewhere)
 MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -57,6 +57,10 @@ build:
 # Copy committed sol-pump YAML into bots/conf/scripts|controllers (required before deploy-v2-script for sol-pump)
 install-sol-pump-config:
 	"$(MAKEFILE_DIR)/scripts/install-sol-pump-config.sh"
+
+# Create DB `hummingbot` on API Postgres if missing (for bot MarketsRecorder; same instance as hummingbot_api)
+ensure-hummingbot-trading-db:
+	"$(MAKEFILE_DIR)/scripts/ensure-hummingbot-trading-db.sh"
 
 # Copy Hummingbot repo conf/ -> bots/credentials/<profile>/ (default: sol_pump). Usage: make sync-credentials-from-hummingbot HUMMINGBOT_ROOT=../hummingbot PROFILE=sol_pump
 sync-credentials-from-hummingbot:

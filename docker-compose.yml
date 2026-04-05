@@ -87,7 +87,9 @@ services:
       - postgres-data:/var/lib/postgresql/data
       # Init script as safety net - only runs on first initialization
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
-    # Host port 55432 avoids clashing with other Postgres (e.g. crypto-analytics on 5432)
+    # Host port 55432 avoids clashing with other Postgres (e.g. crypto-analytics on 5432).
+    # Second DB `hummingbot` (native Hummingbot MarketsRecorder tables): see init-db.sql; existing volumes:
+    #   ./scripts/ensure-hummingbot-trading-db.sh
     ports:
       - "127.0.0.1:55432:5432"
     networks:
