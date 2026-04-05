@@ -13,12 +13,21 @@ make deploy   # Starts all services
 
 That's it! The API is now running at http://localhost:8000
 
+Docker Compose **v2.24+** is required (optional `.env` uses `required: false`). The API image is **built locally** from the `Dockerfile` on first `make deploy`.
+
+To bring the stack up **without** conda setup (uses built-in defaults for API auth when `.env` is missing):
+
+```bash
+make deploy-docker
+```
+
 ## Available Commands
 
 | Command | Description |
 |---------|-------------|
 | `make setup` | Create `.env` file with configuration |
-| `make deploy` | Start all services (API, PostgreSQL, EMQX) |
+| `make deploy` | Build (if needed) and start API, PostgreSQL, EMQX |
+| `make deploy-docker` | Same without `setup` / `.env` |
 | `make stop` | Stop all services |
 | `make run` | Run API locally in dev mode |
 | `make install` | Install conda environment for development |

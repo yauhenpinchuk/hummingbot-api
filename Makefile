@@ -1,4 +1,4 @@
-.PHONY: setup run deploy stop install uninstall build install-pre-commit
+.PHONY: setup run deploy deploy-docker stop install uninstall build install-pre-commit
 
 SETUP_SENTINEL := .setup-complete
 
@@ -13,9 +13,13 @@ run:
 	docker compose up emqx postgres -d
 	conda run --no-capture-output -n hummingbot-api uvicorn main:app --reload
 
-# Deploy with Docker
+# Deploy with Docker (builds API image from Dockerfile if needed)
 deploy: $(SETUP_SENTINEL)
-	docker compose up -d
+	docker compose up -d --build
+
+# Same as deploy but skips setup (no `.env` required; optional env_file — app defaults apply)
+deploy-docker:
+	docker compose up -d --build
 
 # Stop all services
 stop:

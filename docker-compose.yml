@@ -6,13 +6,17 @@ services:
   hummingbot-api:
     container_name: hummingbot-api
     image: hummingbot/hummingbot-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     volumes:
       - ./bots:/hummingbot-api/bots
       - /var/run/docker.sock:/var/run/docker.sock
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       # Override specific values for Docker networking
       - BROKER_HOST=emqx
@@ -26,7 +30,10 @@ services:
     networks:
       - emqx-bridge
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      emqx:
+        condition: service_healthy
   emqx:
     container_name: hummingbot-api-broker
     image: emqx:5
