@@ -144,13 +144,17 @@ class LPRebalancer(ControllerBase):
         # Cached pool price (updated in update_processed_data)
         self._pool_price: Optional[Decimal] = None
 
-        # Initialize rate sources
-        self.market_data_provider.initialize_rate_sources([
-            ConnectorPair(
-                connector_name=self.config.connector_name,
-                trading_pair=self.config.trading_pair
-            )
-        ])
+        # Skip rate source registration when pool_address is provided — pool price is
+        # fetched directly via get_pool_info_by_address in update_processed_data, so
+        # the gateway swap-quote path (get_price by ticker) is not needed and would
+        # fail for tokens not indexed in Raydium's pool discovery API (e.g. memecoins).
+        if not self.config.pool_address:
+            self.market_data_provider.initialize_rate_sources([
+                ConnectorPair(
+                    connector_name=self.config.connector_name,
+                    trading_pair=self.config.trading_pair
+                )
+            ])
 
     def active_executor(self) -> Optional[ExecutorInfo]:
         """Get current active executor (should be 0 or 1)"""
