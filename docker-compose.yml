@@ -12,7 +12,11 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./bots:/hummingbot-api/bots
+      # Bind-mount only mutable trees so image-baked bots/conf, bots/scripts, bots/controllers stay visible
+      - ./bots/credentials:/hummingbot-api/bots/credentials
+      - ./bots/instances:/hummingbot-api/bots/instances
+      - ./bots/data:/hummingbot-api/bots/data
+      - ./bots/archived:/hummingbot-api/bots/archived
       - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - path: .env

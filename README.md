@@ -33,7 +33,7 @@ make deploy-docker
 | `make run`                              | Run API locally in dev mode                                                               |
 | `make install`                          | Install conda environment for development                                                 |
 | `make build`                            | Build Docker image                                                                        |
-| `make install-sol-pump-config`          | Copy sol-pump script/controllers into `bots/conf/`                                        |
+| `make install-sol-pump-config`          | Copy sol-pump YAML into `bots/conf/scripts/` and `bots/conf/controllers/` (not `bots/credentials/`) |
 | `make sync-credentials-from-hummingbot` | Copy `HUMMINGBOT_ROOT/conf` → `bots/credentials/$(PROFILE)` (requires `HUMMINGBOT_ROOT=`) |
 
 
@@ -55,18 +55,15 @@ After `make deploy`, these services are available:
 
 The API deploys **new** containers from `bots/credentials/<profile>/` plus shared `bots/conf/scripts` and `bots/conf/controllers`. To reuse the same strategy and keys as your standalone **hummingbot** repo:
 
-1. **Install strategy files** (committed under `integration/sol-pump/`, copied into gitignored `bots/conf/`):
+1. **Install strategy files** (committed under `integration/sol-pump/`, copied into gitignored `bots/conf/scripts/` and `bots/conf/controllers/`). The parent `bots/conf/` has no YAML at its root—look in those subfolders. Docker Compose bind-mounts only `bots/credentials`, `bots/instances`, `bots/data`, and `bots/archived`; sol-pump YAML is also baked into the API image so an empty host tree does not hide it.
   ```bash
    make install-sol-pump-config
   ```
-2. **Copy live client config** (`conf_client.yml`, encrypted `connectors/`, etc.) from your Hummingbot checkout. The folder **`bots/credentials/sol_pump/` must exist** (Docker mounts `./bots` into the API container); otherwise deploy fails with “no such file or directory”.
-
-   ```bash
+2. **Copy live client config** (`conf_client.yml`, encrypted `connectors/`, etc.) from your Hummingbot checkout. The folder `**bots/credentials/sol_pump/` must exist** (Docker mounts `./bots/credentials` into the API container); otherwise deploy fails with “no such file or directory”.
+  ```bash
    make sync-credentials-from-hummingbot HUMMINGBOT_ROOT=/path/to/hummingbot PROFILE=sol_pump
-   ```
-
-   Until then you can try **`credentials_profile`: `master_account`** only if that tree already contains your real keys; the committed template is minimal.
-
+  ```
+   Until then you can try `**credentials_profile`: `master_account**` only if that tree already contains your real keys; the committed template is minimal.
 3. **Match `CONFIG_PASSWORD`** in the API `.env` to the password used for those encrypted connector files.
 4. **MQTT**: `conf_client.yml` inside the profile should use `mqtt_host: localhost` and port `1883` so instances started with `network_mode: host` reach the same EMQX as the API stack.
 5. **Deploy via API** (Swagger `POST /bot-orchestration/deploy-v2-script` or curl):
@@ -143,8 +140,8 @@ This fork can deploy next to the hummingbot repo under `**/opt/hummingbot-stack/
 4. **Package visibility**: if the image is private, grant the server’s GHCR login access or make the package public.
 5. **PostgreSQL**: the API stack uses its own container and **host port `127.0.0.1:55432`**, so it does not bind to `5432` used by crypto-analytics or other stacks.
 6. **Gateway**: `GATEWAY_URL` defaults to `http://host.docker.internal:15888` so the API container can reach the gateway service on the host.
-7. **Sol-pump via API** (optional): on the server, from `hummingbot-api` run `make install-sol-pump-config` and `make sync-credentials-from-hummingbot HUMMINGBOT_ROOT=/opt/hummingbot-stack/hummingbot PROFILE=sol_pump` once, then deploy with `deploy-v2-script` as in [Integrate an existing Hummingbot](#integrate-an-existing-hummingbot-sol-pump-lp-stack).
-8. **API-only server (no `hummingbot/docker-compose.prod.yml`)**: push to `**hummingbot`** `master` still builds and pushes `**hummingbot-core`** + `**hummingbot-gateway**` images to GHCR, but **does not** SSH-deploy the legacy compose unless you run that workflow manually with **“Deploy legacy stack”** enabled. The `**hummingbot-api`** workflow deploys **API + Postgres + EMQX** only. To start Gateway through the API after each API deploy, set in `../.secrets/env`: `**GATEWAY_POST_START=true`**, `**HUMMINGBOT_GATEWAY_IMAGE=ghcr.io/<owner>/hummingbot-gateway:latest`**, and keep `**GATEWAY_PASSPHRASE**`. Start trading bots with `**POST /bot-orchestration/deploy-v2-script**` (or controllers) in Swagger.
+7. **Sol-pump via API** (optional): run `make sync-credentials-from-hummingbot HUMMINGBOT_ROOT=/opt/hummingbot-stack/hummingbot PROFILE=sol_pump` once on the server so `bots/credentials/sol_pump` exists. Sol-pump YAML is in the API image under `bots/conf/`; use `make install-sol-pump-config` only if you want the same files on the host (e.g. editing before deploy). Then use `deploy-v2-script` as in [Integrate an existing Hummingbot](#integrate-an-existing-hummingbot-sol-pump-lp-stack).
+8. **API-only server (no `hummingbot/docker-compose.prod.yml`)**: push to `**hummingbot`** `master` still builds and pushes `**hummingbot-core`** + `**hummingbot-gateway`** images to GHCR, but **does not** SSH-deploy the legacy compose unless you run that workflow manually with **“Deploy legacy stack”** enabled. The `**hummingbot-api`** workflow deploys **API + Postgres + EMQX** only. To start Gateway through the API after each API deploy, set in `../.secrets/env`: `**GATEWAY_POST_START=true`**, `**HUMMINGBOT_GATEWAY_IMAGE=ghcr.io/<owner>/hummingbot-gateway:latest`**, and keep `**GATEWAY_PASSPHRASE**`. Start trading bots with `**POST /bot-orchestration/deploy-v2-script**` (or controllers) in Swagger.
 
 Push to `main` or run the **Build and Deploy — Hummingbot API** workflow manually. To deploy by hand after a build:
 

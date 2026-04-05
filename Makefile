@@ -1,5 +1,8 @@
 .PHONY: setup run deploy deploy-docker stop install uninstall build install-pre-commit install-sol-pump-config sync-credentials-from-hummingbot
 
+# Directory containing this Makefile (recipes work even if `make -f path/Makefile` is run from elsewhere)
+MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+
 SETUP_SENTINEL := .setup-complete
 
 setup: $(SETUP_SENTINEL)
@@ -51,11 +54,11 @@ install-pre-commit:
 build:
 	docker build -t hummingbot/hummingbot-api:latest .
 
-# Copy committed sol-pump YAML into bots/conf/ (required before deploy-v2-script for sol-pump)
+# Copy committed sol-pump YAML into bots/conf/scripts|controllers (required before deploy-v2-script for sol-pump)
 install-sol-pump-config:
-	./scripts/install-sol-pump-config.sh
+	"$(MAKEFILE_DIR)/scripts/install-sol-pump-config.sh"
 
 # Copy Hummingbot repo conf/ -> bots/credentials/<profile>/ (default: sol_pump). Usage: make sync-credentials-from-hummingbot HUMMINGBOT_ROOT=../hummingbot PROFILE=sol_pump
 sync-credentials-from-hummingbot:
 	@if [ -z "$(HUMMINGBOT_ROOT)" ]; then echo "Set HUMMINGBOT_ROOT=path/to/hummingbot"; exit 1; fi
-	./scripts/sync-credentials-from-hummingbot.sh "$(HUMMINGBOT_ROOT)" "$(or $(PROFILE),sol_pump)"
+	"$(MAKEFILE_DIR)/scripts/sync-credentials-from-hummingbot.sh" "$(HUMMINGBOT_ROOT)" "$(or $(PROFILE),sol_pump)"
