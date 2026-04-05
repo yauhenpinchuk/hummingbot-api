@@ -22,10 +22,10 @@ services:
       - path: .env
         required: false
     environment:
-      # Override specific values for Docker networking
+      # BROKER_HOST must be the Docker service name (not localhost)
       - BROKER_HOST=emqx
-      - DATABASE_URL=postgresql+asyncpg://hbot:hummingbot-api@postgres:5432/hummingbot_api
-      - GATEWAY_URL=http://host.docker.internal:15888
+      # Prefer `DATABASE_URL` from `.env`; fallback matches default POSTGRES_PASSWORD below
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://hbot:hummingbot-api@postgres:5432/hummingbot_api}
     extra_hosts:
       # Map host.docker.internal to host gateway for Linux compatibility
       # On macOS/Windows, Docker Desktop provides this automatically
@@ -74,10 +74,10 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
-      # These variables automatically create the user and database on first initialization
-      - POSTGRES_DB=hummingbot_api
-      - POSTGRES_USER=hbot
-      - POSTGRES_PASSWORD=hummingbot-api
+      # Values from project `.env` (Compose substitution); defaults if `.env` missing
+      - POSTGRES_DB=${POSTGRES_DB:-hummingbot_api}
+      - POSTGRES_USER=${POSTGRES_USER:-hbot}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-hummingbot-api}
       # Additional init parameters for better compatibility
       - POSTGRES_INITDB_ARGS=--encoding=UTF8
     volumes:
