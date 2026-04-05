@@ -1,14 +1,13 @@
-name: Hummingbot-API Docker Buildx Workflow
+# Optional: publish multi-arch images to Docker Hub (upstream-style).
+# Forks rarely have DOCKERHUB_* secrets; production deploy uses GHCR via deploy.yml instead.
+name: Hummingbot-API Docker Hub (manual)
 
 on:
-  pull_request:
-    types: [closed]
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   build_and_push:
-    if: github.event.pull_request.merged == true
+    if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

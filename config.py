@@ -19,8 +19,8 @@ class DatabaseSettings(BaseSettings):
     """Database configuration."""
 
     url: str = Field(
-        default="postgresql+asyncpg://hbot:hummingbot-api@localhost:5432/hummingbot_api",
-        description="Database connection URL"
+        default="postgresql+asyncpg://hbot:hummingbot-api@localhost:55432/hummingbot_api",
+        description="Database connection URL (55432 matches docker-compose Postgres publish port)",
     )
 
     model_config = SettingsConfigDict(env_prefix="DATABASE_", extra="ignore")

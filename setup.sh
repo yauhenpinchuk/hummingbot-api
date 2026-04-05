@@ -393,7 +393,8 @@ BROKER_USERNAME=admin
 BROKER_PASSWORD=password
 
 # Database (auto-configured by docker-compose)
-DATABASE_URL=postgresql+asyncpg://hbot:hummingbot-api@localhost:5432/hummingbot_api
+# Port 55432 matches docker-compose.yml (avoids conflict with Postgres on 5432)
+DATABASE_URL=postgresql+asyncpg://hbot:hummingbot-api@localhost:55432/hummingbot_api
 
 # Gateway (optional)
 GATEWAY_URL=http://localhost:15888

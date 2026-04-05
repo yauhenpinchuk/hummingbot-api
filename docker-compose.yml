@@ -1,3 +1,7 @@
+# Local / dev stack. Project name fixes the bridge network to `hummingbot-api_emqx-bridge`
+# (Gateway containers started by the API look for this network on macOS/Windows.)
+name: hummingbot-api
+
 services:
   hummingbot-api:
     container_name: hummingbot-api
@@ -24,7 +28,7 @@ services:
     depends_on:
       - postgres
   emqx:
-    container_name: hummingbot-broker
+    container_name: hummingbot-api-broker
     image: emqx:5
     restart: unless-stopped
     environment:
@@ -55,7 +59,7 @@ services:
       timeout: 25s
       retries: 5
   postgres:
-    container_name: hummingbot-postgres
+    container_name: hummingbot_api_postgres
     image: postgres:16
     restart: unless-stopped
     environment:
@@ -69,12 +73,13 @@ services:
       - postgres-data:/var/lib/postgresql/data
       # Init script as safety net - only runs on first initialization
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    # Host port 55432 avoids clashing with other Postgres (e.g. crypto-analytics on 5432)
     ports:
-      - "5432:5432"
+      - "127.0.0.1:55432:5432"
     networks:
       - emqx-bridge
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hbot -d hummingbot_api"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 10s
       timeout: 5s
       retries: 5
