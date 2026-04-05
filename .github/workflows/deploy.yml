@@ -87,6 +87,9 @@ jobs:
 
             docker compose -f docker-compose.prod.yml --env-file ../.secrets/env up -d
 
+            # Idempotent: create hummingbot_sol_pump if Postgres volume predates init-db.sql (new installs get it from init)
+            COMPOSE_FILE=docker-compose.prod.yml ENV_FILE=../.secrets/env ./scripts/ensure-hummingbot-trading-db.sh
+
             sleep 15
 
             docker compose -f docker-compose.prod.yml --env-file ../.secrets/env ps
