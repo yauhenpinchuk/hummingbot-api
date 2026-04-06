@@ -64,6 +64,10 @@ jobs:
     name: Deploy to server
     runs-on: ubuntu-latest
     needs: [build-and-push]
+    env:
+      # GitHub rejects `secrets.*` inside step `if:` (parse error). Use env for presence checks only.
+      _STACK_OPS_TOKEN: ${{ secrets.HUMMINGBOT_STACK_OPS_TOKEN }}
+      _STACK_OPS_REPO_FULL: ${{ secrets.HUMMINGBOT_STACK_OPS_REPOSITORY != '' && secrets.HUMMINGBOT_STACK_OPS_REPOSITORY || format('{0}/hummingbot-stack-ops', github.repository_owner) }}
 
     steps:
       - name: Checkout (for optional stack-ops sync)
@@ -71,11 +75,10 @@ jobs:
 
       - name: Checkout hummingbot-stack-ops (prod configs)
         id: stack_ops
-        if: ${{ secrets.HUMMINGBOT_STACK_OPS_TOKEN != '' }}
+        if: ${{ env._STACK_OPS_TOKEN != '' }}
         uses: actions/checkout@v4
         with:
-          # Override with secret HUMMINGBOT_STACK_OPS_REPOSITORY (e.g. other-org/hummingbot-stack-ops) if API and ops repos diverge.
-          repository: ${{ secrets.HUMMINGBOT_STACK_OPS_REPOSITORY != '' && secrets.HUMMINGBOT_STACK_OPS_REPOSITORY || format('{0}/hummingbot-stack-ops', github.repository_owner) }}
+          repository: ${{ env._STACK_OPS_REPO_FULL }}
           token: ${{ secrets.HUMMINGBOT_STACK_OPS_TOKEN }}
           path: hummingbot-stack-ops
 
