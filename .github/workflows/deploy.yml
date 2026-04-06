@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-and-push]
     env:
-      # GitHub rejects `secrets.*` inside step `if:` (parse error). Use env for presence checks only.
+      # `secrets` is not allowed in `jobs.*.if` or `steps.*.if` (context availability). Use job env + `env.*` in step `if`.
       _STACK_OPS_TOKEN: ${{ secrets.HUMMINGBOT_STACK_OPS_TOKEN }}
       _STACK_OPS_REPO_FULL: ${{ secrets.HUMMINGBOT_STACK_OPS_REPOSITORY != '' && secrets.HUMMINGBOT_STACK_OPS_REPOSITORY || format('{0}/hummingbot-stack-ops', github.repository_owner) }}
 
