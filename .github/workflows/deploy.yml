@@ -1,3 +1,6 @@
+# Optional prod config sync: set repo secret HUMMINGBOT_STACK_OPS_TOKEN (fine-grained or classic PAT
+# with read access to private hummingbot-stack-ops). Optional HUMMINGBOT_STACK_OPS_REPOSITORY if the
+# ops repo is not {repository_owner}/hummingbot-stack-ops.
 name: Build and Deploy — Hummingbot API
 
 on:
@@ -63,6 +66,35 @@ jobs:
     needs: [build-and-push]
 
     steps:
+      - name: Checkout (for optional stack-ops sync)
+        uses: actions/checkout@v4
+
+      - name: Checkout hummingbot-stack-ops (prod configs)
+        id: stack_ops
+        if: ${{ secrets.HUMMINGBOT_STACK_OPS_TOKEN != '' }}
+        uses: actions/checkout@v4
+        with:
+          # Override with secret HUMMINGBOT_STACK_OPS_REPOSITORY (e.g. other-org/hummingbot-stack-ops) if API and ops repos diverge.
+          repository: ${{ secrets.HUMMINGBOT_STACK_OPS_REPOSITORY != '' && secrets.HUMMINGBOT_STACK_OPS_REPOSITORY || format('{0}/hummingbot-stack-ops', github.repository_owner) }}
+          token: ${{ secrets.HUMMINGBOT_STACK_OPS_TOKEN }}
+          path: hummingbot-stack-ops
+
+      - name: Rsync prod bot configs (runner → server)
+        if: ${{ steps.stack_ops.outcome == 'success' }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          RSYNC_SSH="ssh -i ${HOME}/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+          rsync -az -e "$RSYNC_SSH" \
+            hummingbot-stack-ops/prod/bots/credentials/ \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/hummingbot-stack/hummingbot-api/bots/credentials/"
+          rsync -az -e "$RSYNC_SSH" \
+            hummingbot-stack-ops/prod/bots/conf/ \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/hummingbot-stack/hummingbot-api/bots/conf/"
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
         with:

@@ -13,8 +13,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Bind-mount only mutable trees so image-baked bots/conf, bots/scripts, bots/controllers stay visible
-      - ./bots/credentials:/hummingbot-api/bots/credentials
+      # credentials/conf: default ./bots/... in this repo, or set HUMMINGBOT_BOTS_*_MOUNT to
+      # hummingbot-stack-ops dev paths (absolute) — see .env.example
+      - ${HUMMINGBOT_BOTS_CREDENTIALS_MOUNT:-./bots/credentials}:/hummingbot-api/bots/credentials
+      - ${HUMMINGBOT_BOTS_CONF_MOUNT:-./bots/conf}:/hummingbot-api/bots/conf
       - ./bots/instances:/hummingbot-api/bots/instances
       - ./bots/data:/hummingbot-api/bots/data
       - ./bots/archived:/hummingbot-api/bots/archived
