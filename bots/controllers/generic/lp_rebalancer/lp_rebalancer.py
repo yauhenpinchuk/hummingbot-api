@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from decimal import Decimal
 from typing import List, Optional
@@ -141,6 +142,9 @@ class LPRebalancer(ControllerBase):
         # Flag to trigger balance update after position creation
         self._pending_balance_update: bool = False
 
+        # Track consecutive ticks without pool price for visible diagnostics
+        self._no_price_ticks: int = 0
+
         # Cached pool price (updated in update_processed_data)
         self._pool_price: Optional[Decimal] = None
 
@@ -155,6 +159,37 @@ class LPRebalancer(ControllerBase):
                     trading_pair=self.config.trading_pair
                 )
             ])
+
+    async def on_start(self):
+        """
+        Warm up pool price before the first control_task tick.
+        Retries up to max_wait seconds to handle Gateway/Helius startup latency.
+        After timeout, returns without price — update_processed_data continues retrying each tick.
+        """
+        max_wait = 120
+        interval = 10
+        attempts = max_wait // interval
+        for attempt in range(1, attempts + 1):
+            try:
+                connector = self.market_data_provider.get_connector_with_fallback(
+                    self.config.connector_name
+                )
+                pool_info = await connector.get_pool_info_by_address(self.config.pool_address)
+                if pool_info and pool_info.price is not None:
+                    self._pool_price = Decimal(str(pool_info.price))
+                    self.logger().info(
+                        f"on_start: pool price ready ({self._pool_price}) on attempt {attempt}"
+                    )
+                    return
+            except Exception as e:  # Network, RPC, Gateway errors — all retriable at startup
+                self.logger().warning(
+                    f"on_start: pool price not available (attempt {attempt}/{attempts}): {e}"
+                )
+            await asyncio.sleep(interval)
+        self.logger().error(
+            f"on_start: pool price unavailable after {max_wait}s — "
+            f"starting anyway, will retry each tick"
+        )
 
     def active_executor(self) -> Optional[ExecutorInfo]:
         """Get current active executor (should be 0 or 1)"""
@@ -205,6 +240,17 @@ class LPRebalancer(ControllerBase):
                 self.logger().debug(f"Could not capture initial balances: {e}")
 
         actions = []
+        # Guard: no pool price yet — log visibly every 5 ticks and skip
+        if self._pool_price is None:
+            self._no_price_ticks += 1
+            if (self._no_price_ticks - 1) % 5 == 0:
+                self.logger().warning(
+                    f"No pool price available after {self._no_price_ticks} tick(s) — "
+                    f"skipping executor creation (connector={self.config.connector_name}, "
+                    f"pool={self.config.pool_address})"
+                )
+            return actions
+        self._no_price_ticks = 0
         executor = self.active_executor()
 
         # Track the active executor's ID if we don't have one yet
@@ -573,13 +619,15 @@ class LPRebalancer(ControllerBase):
     async def update_processed_data(self):
         """Called every tick - always fetch fresh pool price for accurate position creation."""
         try:
-            connector = self.market_data_provider.get_connector(self.config.connector_name)
+            connector = self.market_data_provider.get_connector_with_fallback(
+                self.config.connector_name
+            )
             if hasattr(connector, 'get_pool_info_by_address'):
                 pool_info = await connector.get_pool_info_by_address(self.config.pool_address)
-                if pool_info and pool_info.price:
+                if pool_info and pool_info.price is not None:
                     self._pool_price = Decimal(str(pool_info.price))
         except Exception as e:
-            self.logger().debug(f"Could not fetch pool price: {e}")
+            self.logger().warning(f"Could not fetch pool price: {e}")
 
     def to_format_status(self) -> List[str]:
         """Format status for display."""
